@@ -1,0 +1,5 @@
+# Bundle patch: inserts this plugin's row into the profile composition.
+# The row id can be overridden by a later layer (profile cordis.patch.yml).
+- insert:
+    - id: balance-indicator
+      name: dsh-balance-indicator

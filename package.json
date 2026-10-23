@@ -1,0 +1,28 @@
+{
+  "name": "dsh-balance-indicator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shows the DeepSeek account balance and the balance change for the current GUI session in the composer dock, next to the built-in token/cache pills.",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4"
+  },
+  "license": "MIT"
+}
