@@ -1,5 +1,15 @@
 # dsh-balance-indicator
 
+**A DeepSeek Harness plugin that shows your account balance and
+the spend of the current session in the composer dock, next to the built-in token and cache pills.**
+
+Runs on DSH 0.2.x, MIT licensed, no dependencies beyond the React the shell already provides.
+Spec: `remote.account.getBalance`, slot `conversation.composer.dock`.
+
+![The balance row in the composer dock](docs/balance-row.png)
+
+---
+
 Плагин для DeepSeek Harness: показывает **баланс аккаунта** и **изменение баланса за текущий сеанс**
 прямо в доке композера — рядом со штатными «пилюлями» токенов и кэш-хитов.
 
@@ -66,7 +76,7 @@
 ## Проверки
 
 ```
-node test/smoke.mjs   # 18 проверок браузерной половины (vm, без DOM)
+node test/smoke.mjs   # 19 проверок браузерной половины (vm, без DOM)
 ```
 
 ## Статус: работает
@@ -149,6 +159,8 @@ Baseline нужен каждому кошельку потому, что Platfor
 Штатная запись — `StatsPills` из `@deepseek-ai/dsh-client-ui-chat` с `id: 'stats'`, `order: 0`.
 Этот плагин использует `id: 'balance-indicator'`, `order: 1000`: списки сортируются по `priority`,
 затем по `order` **по возрастанию**, поэтому блок встаёт последним и ничего не подменяет.
+
+![The row in the dock, to the right of the token and cache pills](docs/in-dock.png)
 
 **Граница возможного.** Правее дока в той же строке стоит кольцо заполнения контекста
 (`ContextMeter`, те самые «43%»), и оно рисуется композером **после** слота, а не внутри него:
