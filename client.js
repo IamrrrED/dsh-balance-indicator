@@ -233,6 +233,10 @@ window.__ModuleLoader__.load({
     const ROW_STYLE = {
       display: 'inline-grid',
       alignItems: 'center',
+      // The dock is a centred flex row, and a flex item shrinks by default. Without
+      // this the block is squeezed when the row gets busy, the grid's tracks collapse
+      // below their content and the labels overlap the figures.
+      flexShrink: 0,
       // Two framed rows sit above each other, so a hairline gap would make their
       // borders read as one shape.
       rowGap: '3px',
@@ -536,16 +540,16 @@ window.__ModuleLoader__.load({
           ),
         )
       }
-      // The controls start on the session label's column, exactly where they sat
-      // before the reset control existed: the reset occupies its own column in the
-      // first row and must not push the buttons anywhere.
+      // The controls always take the second row. Putting them on the first row when
+      // there is no granted balance made them share cells with the session label and
+      // figure — the grid areas overlapped, and the buttons drew over the text.
       cells.push(
         h(
           'span',
           {
             key: 'controls',
             style: {
-              gridRow: granted.length > 0 ? '2' : '1',
+              gridRow: '2',
               gridColumn: `${sessionColumn} / -1`,
               display: 'flex',
               alignItems: 'center',
@@ -592,10 +596,10 @@ window.__ModuleLoader__.load({
           style: {
             ...ROW_STYLE,
             gridTemplateColumns,
-            // Explicit rows are required: the coin spans `1 / -1`, and `-1` only
-            // counts the explicit grid — with implicit rows it would cover the
-            // first row alone and the granted label would slide under it.
-            gridTemplateRows: granted.length > 0 ? 'auto auto' : 'auto',
+            // Both rows are explicit and always present: the coin spans `1 / -1`,
+            // and `-1` only counts the explicit grid. The second row also hosts the
+            // controls, so it must exist even when the granted balance is empty.
+            gridTemplateRows: 'auto auto',
           },
           title,
         },

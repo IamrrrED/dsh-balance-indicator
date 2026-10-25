@@ -12,7 +12,7 @@ DSH 0.2.x, MIT. Spec: `remote.account.getBalance`, slot `conversation.composer.d
 The row looks like this:
 
 ```
-💰  Topped-up:   $8.505     -¥0.189        Session:   ¥0.000
+💰  Topped-up:   $8.505     -¥0.189        Session:   $0.086  reset
     Granted:     $15.310    ¥47.285        [Refresh]  [Top up]
 ```
 
@@ -26,8 +26,8 @@ The row looks like this:
 - **`Topped-up:`** is the topped-up balance (`normal_wallets`). If every currency rounds to `0.000`,
   the largest one is shown: a zero balance is information, an empty string is not.
 - **`Granted:`** is the granted balance (`bonus_wallets`). The row appears **only when it is
-  non-empty**: no granted funds (or they round to `0.000`) means no row and no label, the block
-  becomes single-line, and the buttons move up into the first row.
+  non-empty**: no granted funds (or they round to `0.000`) means no row and no label, while the
+  second grid row still exists — it holds the controls — with an empty left half.
 - **The symbol goes before the number** — `¥1.910`, `$8.990`. Symbols come from a small map
   (`CNY → ¥`, `USD → $`), not from `Intl`: in the English locale `Intl` prints `CN¥` and `US$`, and a
   compact sign is what we want. A currency missing from the map is shown by its code, which still
@@ -68,14 +68,15 @@ The row looks like this:
 **The subtlety that is easy to get wrong:** the coin spans both rows via `grid-row: 1 / -1`, and `-1`
 only counts from an **explicit** grid. Without `grid-template-rows` the coin would occupy one cell
 and the `Granted` label would slide under it, breaking the alignment. So the row count is set
-explicitly — `auto auto` with a granted balance, `auto` without one.
+explicitly and is always `auto auto`: the second row hosts the controls even when the granted balance
+is empty.
 
 Auto-refresh every 15 seconds.
 
 ## Checks
 
 ```
-node test/smoke.mjs   # 19 checks of the browser half (vm, no DOM)
+node test/smoke.mjs   # 18 checks of the browser half (vm, no DOM)
 ```
 
 ## Status: works
@@ -173,6 +174,21 @@ children: [
 So no `order` can put you to the right of the meter — you can only be the last entry in the dock.
 While a turn is running the meter is hidden (`activity ? null : …`), and then the block is the
 rightmost element in the row.
+
+### Dock traps found in the live UI
+
+1. **The dock is a centred flex row** (`.dock{display:flex; justify-content:center; gap:12px}`), and
+   the block is one of its flex items. A flex item has `flex-shrink: 1` by default, so as soon as the
+   dock fills up (another plugin added its own entry) the block is squeezed, the grid's `auto` tracks
+   collapse below their content and the labels overlap the figures. The fix is `flexShrink: 0` on the
+   block: it keeps its width and leaves the lack of space to its neighbours.
+2. **The second row must always exist.** `Refresh` and `Top up` live in the second row. Making the
+   grid single-row when the granted balance is empty (as it used to be) puts the buttons into the
+   same cells as the `Session` label and figure, and they draw right over the text. So
+   `gridTemplateRows` is always `auto auto` and the buttons' `gridRow` is always `2`, even when the
+   left half of that row is empty.
+
+Both regressions are guarded by assertions in `test/smoke.mjs`.
 
 ## Layout
 

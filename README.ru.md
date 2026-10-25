@@ -5,10 +5,6 @@
 Плагин для DeepSeek Harness: показывает **баланс аккаунта** и **изменение баланса за текущий сеанс**
 прямо в доке композера — рядом со штатными «пилюлями» токенов и кэш-хитов.
 
-DSH 0.2.x, MIT. Спецификация: `remote.account.getBalance`, слот `conversation.composer.dock`.
-
-![Строка баланса в доке композера](docs/balance-row.png)
-
 Строка выглядит так:
 
 ```
@@ -72,7 +68,7 @@ DSH 0.2.x, MIT. Спецификация: `remote.account.getBalance`, слот 
 ## Проверки
 
 ```
-node test/smoke.mjs   # 19 проверок браузерной половины (vm, без DOM)
+node test/smoke.mjs   # 18 проверок браузерной половины (vm, без DOM)
 ```
 
 ## Статус: работает
@@ -156,8 +152,6 @@ Baseline нужен каждому кошельку потому, что Platfor
 Этот плагин использует `id: 'balance-indicator'`, `order: 1000`: списки сортируются по `priority`,
 затем по `order` **по возрастанию**, поэтому блок встаёт последним и ничего не подменяет.
 
-![Строка в доке, правее пилюль токенов и кэша](docs/in-dock.png)
-
 **Граница возможного.** Правее дока в той же строке стоит кольцо заполнения контекста
 (`ContextMeter`, те самые «43%»), и оно рисуется композером **после** слота, а не внутри него:
 
@@ -172,6 +166,20 @@ children: [
 Когда идёт ход, кольцо скрывается (`activity ? null : …`), и тогда блок оказывается самым правым
 элементом строки.
 
+### Грабли, найденные в живом доке
+
+1. **Док — центрированная flex-строка** (`.dock{display:flex; justify-content:center; gap:12px}`), а
+   блок — её flex-элемент. По умолчанию `flex-shrink: 1`, поэтому когда док заполняется (например,
+   добавился ещё один плагин со своей записью) блок сжимается, `auto`-колонки сетки схлопываются ниже
+   своего содержимого и подписи налезают на цифры. Лечится `flexShrink: 0` в стиле блока — блок
+   сохраняет свою ширину, а переносит ответственность за нехватку места на соседей.
+2. **Вторая строка нужна всегда.** Кнопки `Refresh`/`Top up` живут во второй строке. Если при пустом
+   подарочном балансе делать сетку однострочной (как было), кнопки попадают в те же ячейки, что
+   подпись и значение `Session`, и рисуются прямо поверх текста. Поэтому `gridTemplateRows` всегда
+   `auto auto`, а `gridRow` кнопок всегда `2` — даже когда слева во второй строке пусто.
+
+Обе регрессии закрыты проверками в `test/smoke.mjs`.
+
 ## Состав
 
 | Файл | Роль |
@@ -181,16 +189,16 @@ children: [
 | `index.js` | серверная половина: пустая, нужна только для наличия loader-строки |
 | `client.js` | браузерная половина: CJS-фабрика в `window.__ModuleLoader__`, React из seed-таблицы шелла |
 
-## Установка
+## Установка (уже выполнена)
 
 ```powershell
 # 1. пакет лежит вне профиля, ссылка — через file:
-#    %USERPROFILE%\.dsh\profiles\desktop\package.json
+#    C:\Users\rrrED\.dsh\profiles\desktop\package.json
 #    "dsh-balance-indicator": "file:../../local-plugins/dsh-balance-indicator"
 #    и имя добавлено в "dsh.profile.bundles"
 # 2. связывание
-cd "$env:USERPROFILE\.dsh\profiles\desktop"
-pnpm install --prefer-offline
+cd C:\Users\rrrED\.dsh\profiles\desktop
+node "G:\Soft\DSH\resources\runtime\pnpm\bin\pnpm.cjs" install --prefer-offline
 ```
 
 ## Активация
@@ -224,15 +232,15 @@ cleanup у каждого эффекта. React подменён заглушк�
 поэтому проверка делается на одноразовой копии профиля:
 
 ```powershell
-$prof = "$env:USERPROFILE\.dsh\profiles\desktop"
-$dst  = "$env:USERPROFILE\.dsh\profiles\plugin-check"
+$prof = 'C:\Users\rrrED\.dsh\profiles\desktop'
+$dst  = 'C:\Users\rrrED\.dsh\profiles\plugin-check'
 New-Item -ItemType Directory -Path $dst -Force | Out-Null
 foreach ($f in @('package.json','cordis.yml','cordis.patch.yml','pnpm-lock.yaml','compatibility.json','pnpm-workspace.yaml')) {
   Copy-Item "$prof\$f" $dst -Force -ErrorAction SilentlyContinue
 }
 cmd /c "mklink /J `"$dst\node_modules`" `"$prof\node_modules`""
 
-& dsh --profile plugin-check --dump-config |
+& "G:\Soft\DSH\resources\runtime\cli\bin\dsh.cmd" --profile plugin-check --dump-config |
   Select-String -Pattern 'balance-indicator' -Context 2,1
 
 # уборка: rmdir без /S снимает только junction, содержимое target не трогает

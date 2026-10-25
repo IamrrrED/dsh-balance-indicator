@@ -362,6 +362,21 @@ await scenario(
       !flatten(element).some((node) => node && node.props && 'aria-expanded' in node.props),
       'no disclosure control',
     )
+    // Without a granted balance the left half of the second row is empty, but the
+    // row must still exist: the controls live there, and on the first row their grid
+    // areas would overlap the session label and figure.
+    assert.equal(
+      element.props.style.gridTemplateRows,
+      'auto auto',
+      'both rows are always explicit',
+    )
+    const controls = element.children.find(
+      (node) => node && node.props && node.props.key === 'controls',
+    )
+    assert.ok(controls, 'the controls cell is missing')
+    assert.equal(controls.props.style.gridRow, '2', 'the controls never share the first row')
+    const reset = element.children.find((node) => node && node.props && node.props.key === 'reset')
+    assert.equal(reset.props.style.gridRow, '1', 'the reset stays on the figure row')
   },
 )
 
