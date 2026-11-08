@@ -306,6 +306,12 @@ await scenario(
       'the currency columns must line up across both rows',
     )
 
+    // The marker's size is a deliberate choice, not an inherited one: emoji glyphs
+    // ignore the parent's line box, so a silent shrink would never show up in layout.
+    const coin = element.children.find((node) => node && node.props && node.props.key === 'coin')
+    assert.ok(coin, 'the marker cell is missing')
+    assert.equal(coin.props.style.fontSize, '17px', 'the marker is drawn at 17px')
+
     // Navigation is its own control.
     const topUp = flatten(element).find((node) => node && node.type === 'a')
     assert.ok(topUp, 'top-up button missing')

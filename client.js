@@ -253,11 +253,15 @@ window.__ModuleLoader__.load({
       whiteSpace: 'nowrap',
     }
 
-    /** The marker gets its own size: emoji glyphs ignore the inherited line box. */
+    /**
+     * The marker gets its own size: emoji glyphs ignore the inherited line box, so the
+     * size is set here rather than inherited. 17px is the size picked from the rendered
+     * variants — big enough to read beside the figures without towering over them.
+     */
     const COIN_STYLE = {
       gridRow: '1 / -1',
       gridColumn: '1',
-      fontSize: '13px',
+      fontSize: '17px',
       lineHeight: '1',
       alignSelf: 'center',
       justifySelf: 'center',

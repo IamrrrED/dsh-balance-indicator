@@ -20,6 +20,11 @@ The row looks like this:
   coin, the label, one column per currency, the `Session` label and its value. A dollar sits strictly
   under a dollar and a yuan under a yuan, and the two rows' labels start on the same vertical. There
   are no ` + ` or ` · ` separators — the alignment itself is the separator.
+- **The marker on the left** is the `💰` emoji in its own column, at `17px`, centred across both rows.
+  Its size is set explicitly rather than inherited, because emoji glyphs ignore the parent's line box.
+  17px was picked from rendered variants (bag at 13px and 17px, coin, banknote, card, bank, the text
+  `¥$`, the sign `¤`, drawn SVG circles with `¥` and `$`): clearly bigger than before, without
+  competing with the figures.
 - **Currency order** comes from the `Topped-up` row (descending); currencies that exist only in the
   granted balance are appended after it. Both rows share the order — otherwise the columns would not
   line up.
