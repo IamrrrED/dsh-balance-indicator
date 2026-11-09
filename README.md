@@ -192,8 +192,27 @@ rightmost element in the row.
    same cells as the `Session` label and figure, and they draw right over the text. So
    `gridTemplateRows` is always `auto auto` and the buttons' `gridRow` is always `2`, even when the
    left half of that row is empty.
+3. **The host silently drops `rowGap`.** The shell serialises inline styles against its own property
+   list, and `rowGap` is not in it: the element arrives without `row-gap`, and
+   `getComputedStyle(box).rowGap` reports `normal`. The grid still has two rows, but the distance
+   between them is then left to the font's leading, so the gap the eye sees drifts — 0px, 3px, back
+   to 0px after the app updates. Measured on the live dock before the fix: `h=38.0`, `gap normal`,
+   `rows [15px 17px]` — the rows stood flush. The fix is the `gap` shorthand, `gap: '3px 0px'`: it
+   does survive that serializer, gives the same 3px vertically and leaves the columns untouched
+   (the horizontal rhythm lives in the cells' own padding).
+4. **Row heights are whole pixels.** A `0.5px` border is laid out as half a pixel but painted on
+   whichever pixel boundary the compositor snaps it to, so the button measured 16 or 17px depending
+   on the block's sub-pixel position — and the row moved with it. The buttons therefore carry
+   `height: 17px` + `boxSizing: border-box` + `border: 1px`, the reset fill carries `height: 11px`,
+   and the rows stay `auto`: every child that sets a row's height sets it in whole pixels, so `auto`
+   resolves to 15px and 17px in every state.
 
-Both regressions are guarded by assertions in `test/smoke.mjs`.
+The live block measures `356×41`, its rows are `15px` and `17px`, the gap between them is `3px`, and
+the distance from the bottom of the text to the button's frame is `4px` — independent of the data and
+of where the block lands on the pixel grid.
+
+All four regressions are guarded by assertions in `test/smoke.mjs` — including "the gap must come
+from `gap`, never from `rowGap`".
 
 ## Layout
 

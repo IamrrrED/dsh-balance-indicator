@@ -1,6 +1,6 @@
 {
   "name": "dsh-balance-indicator",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Shows the DeepSeek account balance and the balance change for the current GUI session in the composer dock, next to the built-in token/cache pills.",
   "type": "module",

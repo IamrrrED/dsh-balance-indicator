@@ -237,9 +237,15 @@ window.__ModuleLoader__.load({
       // this the block is squeezed when the row gets busy, the grid's tracks collapse
       // below their content and the labels overlap the figures.
       flexShrink: 0,
-      // Two framed rows sit above each other, so a hairline gap would make their
-      // borders read as one shape.
-      rowGap: '3px',
+      // Two framed rows sit above each other, so a gap is what separates them — and the
+      // gap itself is the fragile part. `rowGap` is silently dropped by the host's style
+      // serializer: the property never reaches the element, `row-gap` computes to `normal`
+      // and the rows end up flush against each other, so the spacing the eye sees is only
+      // the fonts' leading and it moves whenever the row content changes. The `gap`
+      // shorthand does survive that serializer, so the row distance is pinned here as
+      // `3px 0px` — three pixels between the rows, none between the columns, which keep
+      // their rhythm through the cells' own padding.
+      gap: '3px 0px',
       boxSizing: 'border-box',
       padding: '3px 10px',
       // Square on purpose: asked for explicitly, and it deliberately differs from
@@ -301,11 +307,25 @@ window.__ModuleLoader__.load({
       paddingRight: '6px',
     }
 
-    /** Both controls are labelled buttons: `Refresh` and `Top up`. Square, like the frame. */
+    /**
+     * Both controls are labelled buttons: `Refresh` and `Top up`. Square, like the frame.
+     *
+     * The box is pinned to whole pixels on purpose. A fractional border is laid out at
+     * `0.5px` but painted on whichever pixel boundary the compositor snaps it to, so the
+     * button measured 16 or 17px depending on where the chip happened to sit — and the
+     * composer's height changes that offset whenever the input grows a line. The row
+     * follows the button, so the gap above it drifted with it. An integer border, an
+     * explicit height and `border-box` keep the box the same size wherever it lands.
+     */
     const BUTTON_STYLE = {
       color: 'inherit',
       textDecoration: 'none',
-      border: '0.5px solid currentColor',
+      display: 'inline-flex',
+      alignItems: 'center',
+      height: '17px',
+      boxSizing: 'border-box',
+      lineHeight: '15px',
+      border: '1px solid currentColor',
       borderRadius: '0',
       padding: '0 7px',
       opacity: 0.75,
@@ -323,6 +343,10 @@ window.__ModuleLoader__.load({
       borderRadius: '0',
       padding: '0 4px',
       fontSize: '10px',
+      // The fill is its own height rather than a line box, so it cannot grow the row it
+      // sits on: 11px reads as a small tag on the figure row, centred by `align-self`.
+      height: '11px',
+      boxSizing: 'border-box',
       lineHeight: '11px',
       fontWeight: 600,
       opacity: 1,
@@ -603,6 +627,11 @@ window.__ModuleLoader__.load({
             // Both rows are explicit and always present: the coin spans `1 / -1`,
             // and `-1` only counts the explicit grid. The second row also hosts the
             // controls, so it must exist even when the granted balance is empty.
+            //
+            // The tracks are `auto`, but every child that sets the height of a row sets
+            // it in whole pixels: the text rows are the chip's 15px line box and the
+            // controls are pinned to 17px. `auto` therefore resolves to the same 15px and
+            // 17px in every state, so the 3px gap between them cannot move.
             gridTemplateRows: 'auto auto',
           },
           title,

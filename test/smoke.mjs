@@ -287,6 +287,21 @@ await scenario(
       'auto auto',
       'explicit rows are what the coin spans, so a granted row keeps its alignment',
     )
+    // The distance between the two rows must be requested through the `gap` shorthand.
+    // `rowGap` looks like the right property, but the host's inline-style serializer
+    // drops it: the element arrives without `row-gap`, the computed value is `normal`,
+    // and the rows touch — the spacing the eye sees is then just font leading and it
+    // moves with the content. This assertion exists to keep that trap from coming back.
+    assert.equal(
+      element.props.style.gap,
+      '3px 0px',
+      'the row gap is set through `gap`, which the host does apply',
+    )
+    assert.equal(
+      element.props.style.rowGap,
+      undefined,
+      '`rowGap` is silently dropped by the host and must not be used',
+    )
     const cellKeys = element.children.map((node) => (node && node.props ? node.props.key : node))
     assert.deepEqual(
       [...cellKeys],
@@ -348,6 +363,19 @@ await scenario(
     )
     assert.ok(refresh, 'refresh control missing')
     assert.equal(refresh.props.style.borderRadius, '0', 'the refresh control is square too')
+
+    // The row heights are the whole rhythm of the chip, so neither control may let the
+    // row be sized by the pixel grid: a fractional border made the box 16 or 17px
+    // depending on where the chip landed, and the gap between the rows drifted with it.
+    for (const control of [refresh, topUp]) {
+      const style = control.props.style
+      assert.equal(style.display, 'inline-flex', 'the control centres its own label')
+      assert.equal(style.alignItems, 'center', 'the label sits in the middle of the box')
+      assert.equal(style.height, '17px', 'the control box is a whole 17px tall')
+      assert.equal(style.boxSizing, 'border-box', 'the border is inside that 17px')
+      assert.equal(style.lineHeight, '15px', 'the label keeps the chip line box')
+      assert.equal(style.border, '1px solid currentColor', 'an integer border cannot snap')
+    }
     const before = calls.length
     refresh.props.onClick({ preventDefault() {}, stopPropagation() {} })
     await flush()
@@ -540,6 +568,10 @@ await scenario(
     )
     assert.ok(reset, 'the reset control is missing')
     assert.equal(cellText(element, 'reset'), 'reset', 'the control is a word, not a glyph')
+    // The fill is a fixed 11px tag inside the 15px figure row, so it cannot nudge the
+    // row it lives in when the pixel grid shifts.
+    assert.equal(reset.props.style.height, '11px', 'the reset fill is a whole-pixel height')
+    assert.equal(reset.props.style.boxSizing, 'border-box', 'the fill height includes its padding')
     reset.props.onClick({ preventDefault() {}, stopPropagation() {} })
 
     const after = state.component({ balanceSource: source, t: translate })
