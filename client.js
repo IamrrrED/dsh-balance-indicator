@@ -46,12 +46,12 @@ window.__ModuleLoader__.load({
 
     const DICTIONARY = {
       en: {
+        negative: 'Negative balances',
         toppedUp: 'Topped-up balance',
         granted: 'Granted balance',
         toppedUpShort: 'Topped-up',
         grantedShort: 'Granted',
         sessionLabel: 'Session',
-        spent: 'Change since this page opened',
         loading: 'Reading the account balance…',
         signedOut: 'Not signed in',
         failed: 'Balance unavailable',
@@ -64,12 +64,12 @@ window.__ModuleLoader__.load({
         resetShort: 'reset',
       },
       zh: {
+        negative: '负余额',
         toppedUp: '充值余额',
         granted: '赠送余额',
         toppedUpShort: '充值',
         grantedShort: '赠送',
         sessionLabel: '本次会话',
-        spent: '自打开本页面以来的变化',
         loading: '正在读取账户余额…',
         signedOut: '未登录',
         failed: '余额不可用',
@@ -386,23 +386,26 @@ window.__ModuleLoader__.load({
       }
 
       const value = (wallet) => Number(wallet.balance)
-      const shows = (wallet) => Number.isFinite(value(wallet)) && Math.abs(value(wallet)) >= ZERO_EPSILON
+      // Only a positive, above-dust amount earns a column in the row. A zero or
+      // negative wallet is a real state (a spent-down yuan wallet can sit a few fen
+      // below zero), but printing it beside the dollar balance reads as money the
+      // account still holds, so it moves to the tooltip instead.
+      const shows = (wallet) => Number.isFinite(value(wallet)) && value(wallet) >= ZERO_EPSILON
       const bySize = (left, right) => value(right) - value(left)
 
-      // A balance under the last shown digit is noise, so it is dropped. When a
-      // group has entries but none of them shows, the largest still appears as
-      // `0.000`: a topped-up balance of zero is information, an empty group is not.
-      const group = (list) => {
-        const visible = list.filter(shows).sort(bySize)
-        if (visible.length > 0) return visible
-        return list.length > 0 ? [[...list].sort(bySize)[0]] : []
-      }
-
-      const topped = group(wallets)
+      // A balance under the last shown digit is noise, so it is dropped from the row.
+      const topped = wallets.filter(shows).sort(bySize)
       // Kept unfiltered as well: an emptied granted wallet leaves the row, but it
       // must still be able to drive the session figure.
       const grantedAll = bonusWallets.map((wallet) => ({ ...wallet, granted: true }))
       const granted = grantedAll.filter(shows).sort(bySize)
+      // The row keeps only positive amounts. The tooltip names the negative wallets
+      // that still read as a debt, so a spent-down wallet does not vanish without a
+      // trace; exact zeroes and sub-cent remainders print nowhere — as a rounded
+      // `0.000` they carry no information.
+      const negative = [...wallets, ...grantedAll]
+        .filter((wallet) => Number.isFinite(value(wallet)) && value(wallet) < -ZERO_EPSILON)
+        .sort(bySize)
 
       // Every wallet carries its own baseline, because the Platform can draw the
       // session's spend from either the topped-up or the granted balance. The
@@ -421,10 +424,14 @@ window.__ModuleLoader__.load({
       const moved = ranked[0]
       // With nothing moving yet, the figure names the account's main currency:
       // this route carries no FX rates, so "main" is the largest number reported.
+      // A negative wallet still names the currency when it is the only one left.
+      const fallbackWallet = [...topped, ...granted].sort(bySize)[0]
+        ?? [...wallets, ...grantedAll].sort(bySize)[0]
+        ?? { currency: 'USD', balance: '0' }
       const main =
         moved && moved.change !== 0
           ? moved
-          : { wallet: [...topped, ...granted].sort(bySize)[0], change: 0 }
+          : { wallet: fallbackWallet, change: 0 }
       const mainWallet = main.wallet
       const change = main.change
       const mainNumber = value(mainWallet)
@@ -440,9 +447,8 @@ window.__ModuleLoader__.load({
           .map((wallet) => formatMoneyWithCode(wallet.balance, wallet.currency, state.locale))
           .join(' + ')
 
-      // One amount column per currency, shared by both rows, so a dollar sits under
-      // a dollar and a yuan under a yuan. The order comes from the topped-up row
-      // (largest first), then any currency only the granted row holds.
+      // One amount column per visible currency, so a dollar sits under a dollar and
+      // a yuan under a yuan. A hidden wallet contributes no column.
       const currencyOrder = []
       for (const wallet of [...topped, ...granted]) {
         if (!currencyOrder.includes(wallet.currency)) currencyOrder.push(wallet.currency)
@@ -451,6 +457,16 @@ window.__ModuleLoader__.load({
         const wallet = list.find((entry) => entry.currency === currency)
         return wallet ? formatMoney(wallet.balance, currency, state.locale) : ''
       }
+      // A row per group that holds a visible amount. With none, the row keeps its
+      // shape with a dash: the account is at or below zero right now, and the
+      // tooltip carries the exact figures.
+      const rows = []
+      if (topped.length > 0) rows.push({ prefix: 'topped', label: 'toppedUpShort', list: topped, placeholder: false })
+      if (granted.length > 0) rows.push({ prefix: 'granted', label: 'grantedShort', list: granted, placeholder: false })
+      if (rows.length === 0) {
+        rows.push({ prefix: 'topped', label: 'toppedUpShort', list: [], placeholder: true })
+        currencyOrder.push('none')
+      }
 
       // Explicit positions on both axes. Auto-placement cannot be trusted here: the
       // controls are placed in the second row, which leaves a free cell in their
@@ -458,7 +474,7 @@ window.__ModuleLoader__.load({
       const cells = [
         h('span', { key: 'coin', style: COIN_STYLE }, '💰'),
       ]
-      const pushBalanceRow = (prefix, label, list, row) => {
+      const pushBalanceRow = (prefix, label, list, row, placeholder = false) => {
         cells.push(
           h(
             'span',
@@ -474,15 +490,15 @@ window.__ModuleLoader__.load({
             h(
               'span',
               {
-                key: `${prefix}-${currency}`,
+                key: placeholder ? `${prefix}-empty` : `${prefix}-${currency}`,
                 style: { ...AMOUNT_STYLE, gridRow: String(row), gridColumn: String(3 + index) },
               },
-              amountOf(list, currency),
+              placeholder && index === 0 ? '—' : amountOf(list, currency),
             ),
           )
         })
       }
-      pushBalanceRow('topped', 'toppedUpShort', topped, 1)
+      pushBalanceRow(rows[0].prefix, rows[0].label, rows[0].list, 1, rows[0].placeholder)
       const sessionColumn = 3 + currencyOrder.length
       cells.push(
         h(
@@ -531,7 +547,7 @@ window.__ModuleLoader__.load({
           t('resetShort'),
         ),
       )
-      if (granted.length > 0) pushBalanceRow('granted', 'grantedShort', granted, 2)
+      if (rows[1] !== undefined) pushBalanceRow(rows[1].prefix, rows[1].label, rows[1].list, 2, rows[1].placeholder)
 
       const controls = [
         h(
@@ -599,18 +615,12 @@ window.__ModuleLoader__.load({
         'auto',
       ].join(' ')
 
+      // The row already shows every positive amount, so the tooltip keeps only what
+      // the row cannot: negative wallets, and the exact value behind a sub-cent
+      // session figure. An empty string would still be announced as a tooltip.
       const title = [
-        `${t('toppedUp')}: ${groupText(topped)}`,
-        granted.length > 0 ? `${t('granted')}: ${groupText(granted)}` : null,
-        // The row is too narrow to name the wallet; the tooltip says which one moved.
-        `${t('sessionLabel')}: ${formatMoney(change, mainWallet.currency, state.locale)}${
-          change !== 0
-            ? ` — ${mainWallet.granted ? t('grantedShort') : t('toppedUpShort')} ${mainWallet.currency}`
-            : ''
-        }`,
+        negative.length > 0 ? `${t('negative')}: ${groupText(negative)}` : null,
         subCent ? `${t('raw')}: ${mainWallet.balance} ${mainWallet.currency}` : null,
-        t('spent'),
-        target ? t('openTopUp') : t('refresh'),
       ]
         .filter(Boolean)
         .join('\n')
@@ -634,7 +644,8 @@ window.__ModuleLoader__.load({
             // 17px in every state, so the 3px gap between them cannot move.
             gridTemplateRows: 'auto auto',
           },
-          title,
+          // No hidden figure means no tooltip at all, not an empty one.
+          title: title.length > 0 ? title : undefined,
         },
         ...cells,
       )

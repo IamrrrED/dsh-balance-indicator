@@ -349,12 +349,12 @@ await scenario(
     )
     const tooltip = `${element.props.title}`
     assert.ok(
-      tooltip.includes('Topped-up balance: $42.150 USD + ¥5.500 CNY'),
-      `the tooltip must spell out the topped-up codes, got "${tooltip}"`,
+      !tooltip.includes('Topped-up balance'),
+      `the tooltip must not repeat the row amounts, got "${tooltip}"`,
     )
     assert.ok(
-      tooltip.includes('Granted balance: ¥3.000 CNY'),
-      'the tooltip must spell out the granted code',
+      !tooltip.includes('Granted balance'),
+      `the tooltip must not repeat the row amounts, got "${tooltip}"`,
     )
 
     // …and the refresh control reloads without navigating.
@@ -414,7 +414,7 @@ await scenario(
   },
 )
 
-// 2b2. A granted balance that rounds to zero is left out entirely.
+// 2b2. A granted balance that rounds to zero stays out of the row and lands in the tooltip.
 await scenario(
   'a dust granted balance is omitted from the row',
   async () => ({
@@ -430,17 +430,43 @@ await scenario(
     const rendered = text(element)
     assert.equal(cellText(element, 'topped-USD'), '$8.500')
     assert.ok(!rendered.includes('Granted'), 'a dust granted balance must not add a group')
-    assert.ok(!rendered.includes('¥'), 'the dust currency must not appear at all')
+    assert.ok(!rendered.includes('¥'), 'the dust currency must not appear in the row')
     assert.ok(
       !`${element.props.title}`.includes('Granted balance'),
-      'the tooltip must not carry a dust granted balance either',
+      'the tooltip must not name a granted group for dust',
     )
   },
 )
 
-// 2c. A topped-up balance can go negative, and the minus must survive.
+// 2b3. The row keeps only positive amounts; a negative wallet moves to the tooltip.
 await scenario(
-  'a negative balance keeps its minus sign',
+  'a negative wallet leaves the row while the positive one stays',
+  async () => ({
+    ok: true,
+    value: {
+      status: 'ready',
+      value: [
+        { currency: 'USD', balance: '4.291' },
+        { currency: 'CNY', balance: '-0.189' },
+      ],
+      bonusWallets: [],
+    },
+  }),
+  async ({ state, source }) => {
+    const element = state.component({ balanceSource: source, t: translate })
+    const rendered = text(element)
+    assert.equal(cellText(element, 'topped-USD'), '$4.291', `the positive wallet must stay in "${rendered}"`)
+    assert.equal(cellText(element, 'topped-CNY'), null, 'the negative wallet must leave the row')
+    assert.ok(!rendered.includes('-¥'), 'no negative amount may reach the row')
+    const tooltip = `${element.props.title}`
+    assert.ok(!tooltip.includes('$4.291'), `the visible wallet is already on the row: "${tooltip}"`)
+    assert.ok(tooltip.includes('-¥0.189 CNY'), `the hidden wallet stays in the tooltip: "${tooltip}"`)
+  },
+)
+
+// 2c. A topped-up balance can go negative: the row shows a dash, the tooltip keeps the sign.
+await scenario(
+  'a negative balance leaves the row and keeps its signed value in the tooltip',
   async () => ({
     ok: true,
     value: { status: 'ready', value: [{ currency: 'USD', balance: '-0.01' }], bonusWallets: [] },
@@ -448,8 +474,16 @@ await scenario(
   async ({ state, source }) => {
     const element = state.component({ balanceSource: source, t: translate })
     const rendered = text(element)
-    assert.equal(cellText(element, 'topped-USD'), '-$0.010', `negative balance not rendered in "${rendered}"`)
-    assert.ok(`${element.props.title}`.includes('-$0.010'), 'tooltip must carry the signed value')
+    assert.equal(
+      cellText(element, 'topped-empty'),
+      '—',
+      `a non-positive wallet must not print an amount in "${rendered}"`,
+    )
+    assert.equal(cellText(element, 'topped-USD'), null, 'the negative amount leaves the row')
+    assert.ok(
+      `${element.props.title}`.includes('-$0.010 USD'),
+      'tooltip must carry the signed value',
+    )
   },
 )
 
@@ -474,9 +508,9 @@ await scenario(
   },
 )
 
-// 2d. Sub-cent remainders must not print as "-0.00", and dust bonuses stay hidden.
+// 2d. Sub-cent remainders print nowhere; the exact value survives as `Exact value`.
 await scenario(
-  'a sub-cent remainder renders as a clean zero',
+  'a sub-cent remainder prints no amount and keeps its exact value',
   async () => ({
     ok: true,
     value: {
@@ -488,19 +522,18 @@ await scenario(
   async ({ state, source }) => {
     const element = state.component({ balanceSource: source, t: translate })
     const rendered = text(element)
-    assert.equal(cellText(element, 'topped-USD'), '$0.000', `clean zero missing in "${rendered}"`)
+    assert.equal(cellText(element, 'topped-empty'), '—', `clean dash missing in "${rendered}"`)
     assert.ok(!rendered.includes('-$0.000'), 'a rounded zero must not keep a minus sign')
     assert.ok(!rendered.includes('Granted'), 'a dust granted balance must stay out of the row')
-    assert.ok(
-      `${element.props.title}`.includes('-0.0004 USD'),
-      'the tooltip must still carry the exact value',
-    )
+    const tooltip = `${element.props.title}`
+    assert.ok(!tooltip.includes('Negative balances'), `a rounded zero adds no tooltip line: "${tooltip}"`)
+    assert.ok(tooltip.includes('Exact value: 0.0000001 USD'), `the exact value stays in the tooltip: "${tooltip}"`)
   },
 )
 
-// 2e. Only currencies with a non-zero shown amount survive.
+// 2e. Only positive, visible amounts survive; everything else moves to the tooltip.
 await scenario(
-  'zero-displaying currencies stay out of the line',
+  'zero and negative currencies stay out of the line',
   async () => ({
     ok: true,
     value: {
@@ -508,6 +541,7 @@ await scenario(
       value: [
         { currency: 'CNY', balance: '-0.0004' }, // rounds to 0.000
         { currency: 'USD', balance: '-0.010' }, // rounds to -0.010
+        { currency: 'EUR', balance: '7.20' }, // the only positive wallet
       ],
       bonusWallets: [{ currency: 'EUR', balance: '0.0000001' }], // pure dust
     },
@@ -515,11 +549,41 @@ await scenario(
   async ({ state, source }) => {
     const element = state.component({ balanceSource: source, t: translate })
     const rendered = text(element)
-    // Only the currency that shows an amount survives, even though -0.0004 is
-    // numerically larger than -0.010.
-    assert.equal(cellText(element, 'topped-USD'), '-$0.010', `topped-up group missing in "${rendered}"`)
+    // The positive euro is the only amount in the row; the negative dollar is
+    // numerically larger in magnitude, which is exactly the bug this guards.
+    assert.equal(cellText(element, 'topped-EUR'), '€7.200', `positive wallet missing in "${rendered}"`)
     assert.ok(!rendered.includes('¥'), 'a zero-displaying currency must be hidden')
-    assert.ok(!rendered.includes('€'), 'a dust-only currency must be hidden')
+    assert.ok(!rendered.includes('$'), 'a negative currency must be hidden')
+    const tooltip = `${element.props.title}`
+    assert.ok(!tooltip.includes('¥'), `a rounded-zero wallet must stay out of the tooltip: "${tooltip}"`)
+    assert.ok(tooltip.includes('-$0.010 USD'), `the negative dollar must stay in the tooltip: "${tooltip}"`)
+  },
+)
+
+// 2f. No positive wallet at all: the row keeps its shape with a dash.
+await scenario(
+  'an account without a positive wallet shows a dash instead of zeroes',
+  async () => ({
+    ok: true,
+    value: {
+      status: 'ready',
+      value: [
+        { currency: 'USD', balance: '0' },
+        { currency: 'CNY', balance: '-0.189' },
+      ],
+      bonusWallets: [{ currency: 'USD', balance: '0' }],
+    },
+  }),
+  async ({ state, source }) => {
+    const element = state.component({ balanceSource: source, t: translate })
+    const rendered = text(element)
+    assert.equal(cellText(element, 'topped-empty'), '—', `dash missing in "${rendered}"`)
+    assert.equal(cellText(element, 'topped-USD'), null, 'a zero wallet must not print an amount column')
+    assert.ok(!rendered.includes('¥-'), 'a negative wallet must not print an amount')
+    assert.equal(cellText(element, 'session-value'), '$0.000', 'the session figure keeps its place')
+    const tooltip = `${element.props.title}`
+    assert.ok(!tooltip.includes('$0.000 USD'), `a zero wallet must stay out of the tooltip: "${tooltip}"`)
+    assert.ok(tooltip.includes('negative: -¥0.189 CNY'), `the negative wallet stays in the tooltip: "${tooltip}"`)
   },
 )
 
@@ -629,10 +693,6 @@ await scenario(
     assert.equal(cellText(element, 'session-value'), '¥5.000', `session figure missing in "${rendered}"`)
     assert.equal(cellText(element, 'topped-USD'), '$8.500', 'the topped-up group must be unchanged')
     assert.equal(cellText(element, 'granted-CNY'), '¥45.000', 'the granted group must show the new amount')
-    assert.ok(
-      `${element.props.title}`.includes('Granted CNY'),
-      'the tooltip must name the wallet that moved',
-    )
   },
 )
 

@@ -12,8 +12,8 @@ DSH 0.2.x, MIT. Spec: `remote.account.getBalance`, slot `conversation.composer.d
 The row looks like this:
 
 ```
-💰  Topped-up:   $8.505     -¥0.189        Session:   $0.086  reset
-    Granted:     $15.310    ¥47.285        [Refresh]  [Top up]
+💰  Topped-up:   $8.505                  Session:   $0.086  reset
+    Granted:     $15.310    ¥47.285      [Refresh]  [Top up]
 ```
 
 - **A grid, not a flow.** The row is a CSS grid of four content columns plus two service ones: the
@@ -28,8 +28,9 @@ The row looks like this:
 - **Currency order** comes from the `Topped-up` row (descending); currencies that exist only in the
   granted balance are appended after it. Both rows share the order — otherwise the columns would not
   line up.
-- **`Topped-up:`** is the topped-up balance (`normal_wallets`). If every currency rounds to `0.000`,
-  the largest one is shown: a zero balance is information, an empty string is not.
+- **`Topped-up:`** is the topped-up balance (`normal_wallets`). Only **positive** amounts above the
+  `0.000` threshold reach the row: zero and negative wallets stay out of it (see below), and when no
+  wallet is positive the row shows `—` instead of an amount.
 - **`Granted:`** is the granted balance (`bonus_wallets`). The row appears **only when it is
   non-empty**: no granted funds (or they round to `0.000`) means no row and no label, while the
   second grid row still exists — it holds the controls — with an empty left half.
@@ -40,15 +41,24 @@ The row looks like this:
 - **Three decimal places.** They come from a single constant, `FRACTION_DIGITS`, and the "this is
   zero" threshold is derived from it (`ZERO_EPSILON = 0.5 · 10⁻³`), so the number of digits and the
   threshold cannot drift apart.
-- **A negative balance** (overspend) is printed with the minus **before the symbol**: `-$0.010`. An
-  amount below the threshold prints as an unsigned `0.000`: Platform stores many digits
-  (`0.1068931130…`), and otherwise `-0.0004` would render as `-0.000`. The exact value is not lost —
-  it stays in the tooltip as `Exact value`.
+- **The row holds positive amounts only.** A spent-down yuan wallet (`-¥0.189`) next to the dollar
+  balance reads as money the account still has, so it is not printed there.
+- **The tooltip holds negatives only.** A hidden debt is not lost: the tooltip lists the negative
+  wallets as `Negative balances: -¥0.189 CNY` with the same three digits as the row. Zeroes and
+  sub-cent remainders are printed nowhere.
+- **The tooltip never repeats the row.** Positive amounts are already in the badge, so the tooltip
+  carries only what the row cannot: the negative wallets and — when `Session` sits on a sub-cent
+  wallet — its exact value (`Exact value: 0.0000001 USD`). With neither, there is no tooltip at all.
+- **The exact sub-cent value** is the one exception to "no hidden figures": `Exact value` appears only
+  when the session figure belongs to such a wallet, because `-0.0004` would otherwise round to zero
+  and lose its sign.
+- **Threshold and zeroes.** An amount below `ZERO_EPSILON = 0.5 · 10⁻³` counts as zero and goes
+  nowhere: `-0.0004` would print as `-0.000` and `0.1068931130…` as `0.000`, which reads the same.
 - **Which wallet `Session` follows** — the one that is actually being spent. The baseline is kept
   **per wallet** (key `<group>:<currency>`), because Platform may charge the session to either the
   topped-up or the granted balance. The figure comes from the wallet whose change is larger in
   absolute value; if nothing has moved yet, from the largest one, so the row never stays empty. The
-  tooltip names it: `Session: ¥1.910 — Granted CNY`.
+  row shows the figure with its currency symbol; the tooltip does not repeat it.
 - **`reset` next to the `Session` value** zeroes the session spend. Technically it is not "zeroing a
   counter" but **moving the anchor**: every wallet's baseline is overwritten with the current
   balance — in `sessionStorage` and in the snapshot — so the next read does not return the old
@@ -57,8 +67,8 @@ The row looks like this:
   `Reset the session spend`; in zh — `清零`. The variant was chosen from ten rendered highlight
   options: a fill gives the "button" feel without drawing an outline, and a neutral grey at alpha
   0.20 reads in both light and dark themes.
-- **Currencies whose displayed balance is zero** (after rounding to `0.000`, dust bonuses included)
-  do not appear in the row at all — the cell stays empty so the columns do not shift.
+- **A currency column** appears only for a visible positive amount; hidden wallets take no column.
+  A negative wallet moves to the tooltip, a rounded zero prints nowhere.
 - **The container** is a block with **square corners** (`border-radius: 0`): this was asked for
   explicitly, and it deliberately sets the balance block apart from the dock's rounded pills.
   Typography and colour come from the same tokens the built-in token/cache pill uses
@@ -141,11 +151,11 @@ Every wallet needs a baseline because Platform does not necessarily charge the s
 topped-up balance: on an account with granted funds the spend may come out of those, and the topped-up
 balance then stands still. The session figure used to be tied to "the largest currency" — and if the
 larger one was the granted wallet, which had no baseline, `Session` froze at `0.000` for the whole
-session. Now the figure follows the wallet whose change is larger in absolute value, and the tooltip
-names it (`Session: ¥1.910 — Granted CNY`).
+session. Now the figure follows the wallet whose change is larger in absolute value; the row shows it
+with its currency symbol, without repeating it in the tooltip.
 
 Consequence: if another session or window is spending in parallel, its spend lands in this difference
-too. The tooltip's label reflects that.
+too.
 
 ## Where the data comes from
 
@@ -154,8 +164,8 @@ too. The tooltip's label reflects that.
   not signed in.
 - Host half: `ctx.deepseekAccount` → `GET https://platform.deepseek.com/api/v0/users/get_user_summary`
   with the `x-dsh-auth-token` header (the token stays on the host and never reaches the browser).
-- Currencies: `CNY`, `USD`. Granted wallets (`bonus_wallets`) go into the `Granted:` group, and in the
-  tooltip with currency codes next to the amounts.
+- Currencies: `CNY`, `USD`. Granted wallets (`bonus_wallets`) go into the `Granted:` group; the
+  tooltip keeps only negative values.
 
 ## Where it sits in the UI
 
